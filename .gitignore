@@ -1,0 +1,14 @@
+.env
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.csv
+!sample_contacts.csv
+results/
+recordings/
+*.mp3
+*.wav
+*.db
+*.sqlite
+.DS_Store

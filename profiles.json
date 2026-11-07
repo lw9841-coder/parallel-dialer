@@ -1,0 +1,26 @@
+{
+  "warm": {
+    "label": "Warm calls",
+    "caller_id": "",
+    "lines_per_batch": 3,
+    "ring_timeout": 25,
+    "machine_detection": "Enable",
+    "voicemail_pause": 3,
+    "voicemail_audio_url": "",
+    "record": false,
+    "auto_advance": true,
+    "wrapup_seconds": 0
+  },
+  "blitz": {
+    "label": "List blitz",
+    "caller_id": "",
+    "lines_per_batch": 5,
+    "ring_timeout": 20,
+    "machine_detection": "Enable",
+    "voicemail_pause": 1,
+    "voicemail_audio_url": "",
+    "record": false,
+    "auto_advance": true,
+    "wrapup_seconds": 4
+  }
+}

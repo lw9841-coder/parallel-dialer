@@ -1,0 +1,6 @@
+name,phone,organization,status,notes
+Sample Contact 1,555-555-0101,Example Org A,Warm,Met at a sample event
+Sample Contact 2,555-555-0102,Example Org B,New,
+Sample Contact 3,555-555-0103,Example Org C,Warm,Asked for a call back
+Sample Contact 4,555-555-0104,Example Org D,New,
+Sample Contact 5,555-555-0105 ext. 12,Example Org E,Warm,Extension is dropped when dialing

@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Parallel Dialer</title>
+<style>
+  :root{
+    --bg:#0e1116; --panel:#161b22; --edge:#262d38; --ink:#e6edf3; --dim:#8b98a8;
+    --live:#3fb950; --ring:#d29922; --dead:#484f58; --hot:#f85149; --accent:#4493f8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:14px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+  header{display:flex;align-items:center;gap:16px;padding:12px 20px;
+         border-bottom:1px solid var(--edge);background:var(--panel);
+         position:sticky;top:0;z-index:5;flex-wrap:wrap}
+  h1{font-size:15px;margin:0;font-weight:600;letter-spacing:-.01em}
+  .pill{padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;
+        text-transform:uppercase;letter-spacing:.06em;background:var(--dead);color:#fff}
+  .pill.ready,.pill.dialing{background:var(--ring);color:#1a1200}
+  .pill.live{background:var(--live);color:#052e10}
+  .pill.wrapup{background:var(--accent);color:#02182f}
+  .pill.stopped,.pill.idle{background:var(--dead)}
+  .spacer{flex:1}
+  .counts{color:var(--dim);font-variant-numeric:tabular-nums;font-size:13px}
+  button{font:inherit;font-weight:600;color:var(--ink);background:#21262d;
+         border:1px solid var(--edge);border-radius:7px;padding:7px 13px;cursor:pointer}
+  button:hover:not(:disabled){border-color:#3d4654;background:#282e37}
+  button:disabled{opacity:.35;cursor:not-allowed}
+  button.go{background:var(--live);border-color:var(--live);color:#052e10}
+  button.stop{background:transparent;border-color:var(--hot);color:var(--hot)}
+  main{padding:20px;display:grid;grid-template-columns:1fr 320px;gap:20px;
+       max-width:1240px;margin:0 auto;align-items:start}
+  @media(max-width:900px){main{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--edge);border-radius:11px;padding:16px}
+  .card h2{font-size:11px;text-transform:uppercase;letter-spacing:.08em;
+           color:var(--dim);margin:0 0 12px}
+
+  /* live call */
+  #live{border-color:transparent;min-height:132px;display:flex;flex-direction:column;
+        justify-content:center;transition:border-color .15s}
+  #live.on{border-color:var(--live);box-shadow:0 0 0 1px var(--live) inset}
+  .who{font-size:26px;font-weight:700;letter-spacing:-.02em;margin-bottom:2px}
+  .where{color:var(--dim);font-size:15px}
+  .meta{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .tag{font-size:11px;font-weight:700;padding:2px 9px;border-radius:99px;
+       background:#21262d;border:1px solid var(--edge);color:var(--dim)}
+  .note{margin-top:10px;color:var(--dim);font-size:13px;white-space:pre-wrap;
+        max-height:88px;overflow:auto;border-left:2px solid var(--edge);padding-left:10px}
+  .idlemsg{color:var(--dim);font-size:15px;text-align:center}
+
+  /* lines */
+  .lines{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+  .line{border:1px solid var(--edge);border-radius:9px;padding:11px 12px;background:#12171e}
+  .line .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .line .ph{color:var(--dim);font-size:12px;font-variant-numeric:tabular-nums}
+  .line .st{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+            margin-top:7px;color:var(--dead)}
+  .line.ringing{border-color:var(--ring)}
+  .line.ringing .st{color:var(--ring)}
+  .line.ringing .nm::after{content:"";display:inline-block;width:6px;height:6px;
+       margin-left:7px;border-radius:50%;background:var(--ring);animation:blink 1s infinite}
+  @keyframes blink{50%{opacity:.15}}
+  .line.answered{border-color:var(--live);background:#0f1f14}
+  .line.answered .st{color:var(--live)}
+  .line.machine{border-color:var(--accent)}
+  .line.machine .st{color:var(--accent)}
+  .line.dead{opacity:.4}
+
+  /* dispositions */
+  .dispo{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+  .dispo button{text-align:left;position:relative;padding-left:30px}
+  .dispo kbd{position:absolute;left:9px;top:50%;transform:translateY(-50%);
+       background:#0e1116;border:1px solid var(--edge);border-radius:4px;
+       padding:1px 5px;font-size:10px;color:var(--dim);font-family:ui-monospace,monospace}
+  #note{width:100%;margin-top:10px;background:#0e1116;border:1px solid var(--edge);
+        border-radius:7px;color:var(--ink);padding:9px 11px;font:inherit;resize:vertical}
+
+  /* side */
+  ul{list-style:none;margin:0;padding:0}
+  .q li{display:flex;justify-content:space-between;gap:10px;padding:6px 0;
+        border-bottom:1px solid #1c222b;font-size:13px}
+  .q li:last-child{border:0}
+  .q .sub{color:var(--dim);font-size:11px}
+  .h li{display:flex;justify-content:space-between;gap:10px;padding:5px 0;font-size:12.5px}
+  .h .oc{font-weight:700;font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim)}
+  .h .oc.connected,.h .oc.interested{color:var(--live)}
+  .h .oc.voicemail{color:var(--accent)}
+  .banner{background:#3d2a00;border:1px solid #7a5400;color:#ffd479;
+          padding:11px 14px;border-radius:9px;margin:0 20px 0;font-size:13px}
+  .banner code{background:rgba(0,0,0,.3);padding:1px 5px;border-radius:4px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  select,input[type=text]{background:#0e1116;border:1px solid var(--edge);border-radius:7px;
+        color:var(--ink);padding:6px 9px;font:inherit}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Parallel Dialer</h1>
+  <span class="pill idle" id="pill">idle</span>
+  <span class="counts" id="counts">—</span>
+  <span class="spacer"></span>
+  <select id="profile" title="Dialing profile"></select>
+  <span class="counts" id="cid"></span>
+  <label class="counts">lines
+    <select id="lines">
+      <option>2</option><option selected>3</option><option>4</option><option>5</option>
+    </select>
+  </label>
+  <input type="text" id="csvpath" placeholder="contacts.csv (blank = sample)" style="width:200px">
+  <button id="load">Load queue</button>
+  <button id="start" class="go">Start session</button>
+  <button id="stop" class="stop" hidden>Stop</button>
+</header>
+
+<div class="banner" id="banner" hidden></div>
+
+<main>
+  <div>
+    <div class="card" id="live">
+      <div class="idlemsg" id="idlemsg">No live call</div>
+      <div id="livebody" hidden>
+        <div class="who" id="who"></div>
+        <div class="where" id="where"></div>
+        <div class="meta" id="meta"></div>
+        <div class="note" id="notes" hidden></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h2>Lines</h2>
+      <div class="lines" id="lineswrap"><div class="idlemsg">Idle</div></div>
+      <div class="row" style="margin-top:12px">
+        <button id="next">Next batch <kbd>N</kbd></button>
+        <button id="vm">Voicemail drop <kbd>V</kbd></button>
+        <button id="hang">Hang up <kbd>H</kbd></button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h2>Disposition</h2>
+      <div class="dispo">
+        <button data-oc="interested"><kbd>1</kbd>Interested</button>
+        <button data-oc="follow-up"><kbd>2</kbd>Follow up</button>
+        <button data-oc="not-interested"><kbd>3</kbd>Not interested</button>
+        <button data-oc="wrong-number"><kbd>4</kbd>Wrong number</button>
+        <button data-oc="no-answer"><kbd>5</kbd>No answer</button>
+        <button data-oc="do-not-call"><kbd>6</kbd>Do not call</button>
+      </div>
+      <textarea id="note" rows="2" placeholder="Note (saved to the results file with the disposition)"></textarea>
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <h2>Up next</h2>
+      <ul class="q" id="upnext"><li class="sub">Nothing loaded</li></ul>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h2>This session</h2>
+      <ul class="h" id="history"><li class="sub">No calls yet</li></ul>
+    </div>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let S = null;
+
+const post = (url, body) =>
+  fetch(url, {method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify(body||{})}).then(r => r.json());
+
+function render(s){
+  S = s;
+  $('pill').textContent = s.state;
+  $('pill').className = 'pill ' + s.state;
+  $('counts').textContent =
+    `${s.dialed}/${s.total} dialed · ${s.remaining} left · ${s.history.length} logged`;
+
+  const running = !['idle','stopped'].includes(s.state);
+  $('start').hidden = running;
+  $('stop').hidden = !running;
+  $('load').disabled = running;
+
+  // live call
+  const a = s.active;
+  $('live').classList.toggle('on', !!a);
+  $('livebody').hidden = !a;
+  $('idlemsg').hidden = !!a;
+  if (a){
+    const L = a.lead;
+    $('who').textContent = L.name;
+    $('where').textContent = L.organization || L.phone;
+    $('meta').innerHTML =
+      [L.status && `<span class="tag">${esc(L.status)}</span>`,
+       `<span class="tag">${esc(L.phone)}</span>`].filter(Boolean).join('');
+    $('notes').hidden = !L.notes;
+    $('notes').textContent = L.notes || '';
+  } else {
+    $('idlemsg').textContent =
+      s.state === 'wrapup' ? 'Call ended — log it to keep dialing'
+      : s.state === 'dialing' ? 'Ringing…'
+      : s.state === 'connecting' ? 'Calling your phone — pick up'
+      : 'No live call';
+  }
+
+  // lines
+  const w = $('lineswrap');
+  if (!s.lines.length){
+    w.innerHTML = '<div class="idlemsg">Idle</div>';
+  } else {
+    w.innerHTML = s.lines.map(l => `
+      <div class="line ${l.state}">
+        <div class="nm">${esc(l.lead.name)}</div>
+        <div class="ph">${esc(l.lead.phone)}</div>
+        <div class="st">${l.state === 'answered' ? 'connected' : esc(l.answered_by || l.state)}</div>
+      </div>`).join('');
+  }
+
+  $('upnext').innerHTML = s.up_next.length
+    ? s.up_next.map(l => `<li><span>${esc(l.name)}</span>
+        <span class="sub">${esc(l.organization || l.phone)}</span></li>`).join('')
+    : '<li class="sub">Queue empty</li>';
+
+  $('history').innerHTML = s.history.length
+    ? s.history.map(h => `<li><span>${esc(h.lead.name)}</span>
+        <span class="oc ${esc(h.outcome||'')}">${esc(h.outcome||'—')}</span></li>`).join('')
+    : '<li class="sub">No calls yet</li>';
+
+  const c = s.config || {};
+  if (c.profiles && $('profile').options.length !== Object.keys(c.profiles).length){
+    $('profile').innerHTML = Object.entries(c.profiles)
+      .map(([k,v]) => `<option value="${esc(k)}">${esc(v)}</option>`).join('');
+  }
+  if (c.profile) $('profile').value = c.profile;
+  $('profile').disabled = running;
+  $('cid').textContent = c.caller_id ? 'from ' + c.caller_id : '';
+  $('lines').value = String(s.lines_per_batch);
+
+  const warn = (c.warnings || []).slice();
+  if (c.missing && c.missing.length)
+    warn.unshift('Not dial-ready. Set in .env: ' + c.missing.join(', '));
+  if (warn.length){
+    $('banner').hidden = false;
+    $('banner').innerHTML = warn.map(esc).join('<br>');
+  }
+}
+
+const esc = t => String(t ?? '').replace(/[&<>"]/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// controls
+$('load').onclick = async () => {
+  $('load').disabled = true;
+  const r = await post('/api/queue/load', {path: $('csvpath').value.trim()});
+  $('load').disabled = false;
+  if (r.error){
+    $('banner').hidden = false;
+    $('banner').textContent = 'Queue load failed: ' + r.error;
+  } else {
+    $('banner').hidden = false;
+    $('banner').textContent = `Loaded ${r.count} dialable numbers. Hit Start session.`;
+  }
+};
+$('start').onclick = async () => {
+  const r = await post('/api/session/start');
+  if (r.error){ $('banner').hidden = false; $('banner').textContent = r.error; }
+};
+$('stop').onclick  = () => post('/api/session/stop');
+$('next').onclick  = () => post('/api/batch/next');
+$('vm').onclick    = () => post('/api/voicemail');
+$('hang').onclick  = () => post('/api/hangup');
+$('lines').onchange = e => post('/api/lines', {n: +e.target.value});
+$('profile').onchange = async e => {
+  const r = await post('/api/profile', {name: e.target.value});
+  if (r.error){ $('banner').hidden = false; $('banner').textContent = r.error; }
+};
+
+function dispo(outcome){
+  post('/api/disposition', {outcome, note: $('note').value.trim() || null})
+    .then(() => { $('note').value = ''; });
+}
+document.querySelectorAll('.dispo button').forEach(b =>
+  b.onclick = () => dispo(b.dataset.oc));
+
+const KEYS = {'1':'interested','2':'follow-up','3':'not-interested',
+              '4':'wrong-number','5':'no-answer','6':'do-not-call'};
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (KEYS[k]) { e.preventDefault(); dispo(KEYS[k]); }
+  else if (k === 'n') { e.preventDefault(); post('/api/batch/next'); }
+  else if (k === 'v') { e.preventDefault(); post('/api/voicemail'); }
+  else if (k === 'h') { e.preventDefault(); post('/api/hangup'); }
+});
+
+// live state
+new EventSource('/api/events').onmessage = e => render(JSON.parse(e.data));
+fetch('/api/state').then(r => r.json()).then(render);
+</script>
+</body>
+</html>
